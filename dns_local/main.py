@@ -63,7 +63,7 @@ def remove(name):
         f.write(buf)
 
 
-@cli.command()
+@cli.command('remove')
 @click.argument('name')
 def cli_remove(name):
     """ Remove a DNS entry """
