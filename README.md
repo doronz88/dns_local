@@ -13,3 +13,16 @@ Commands:
   list        List current DNS entries
   set         Insert/Update a DNS entry
 ```
+
+# Installation
+
+```sh
+brew install dnsmasq
+
+git clone git@github.com:doronz88/dns_local.git
+cd dns_local
+python3 -m pip install -e .
+```
+
+
+
