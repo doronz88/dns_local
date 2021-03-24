@@ -79,6 +79,13 @@ def cli_list():
         print(name, ip)
 
 
+@cli.command('restart')
+def cli_restart():
+    """ Restart DNS service """
+    add_localhost_as_dns_server()
+    restart_dnsmasq()
+
+
 @cli.command('set')
 @click.argument('name')
 @click.argument('ip')
