@@ -9,8 +9,8 @@ setup(name='dns_local',
       author_email='doron88@gmail.com',
       url='https://github.com/doronz88/dns_local',
       packages=['dns_local'],
-      requires=['click'],
+      requires=['click', 'ifaddr'],
       entry_points={
-          'console_scripts': ['dns_local=dns_local.main:main'],
+          'console_scripts': ['dns_local=dns_local.__main__:cli'],
       }
       )
