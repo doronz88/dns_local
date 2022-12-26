@@ -1,0 +1,2 @@
+class DnsLocalException(Exception):
+    pass

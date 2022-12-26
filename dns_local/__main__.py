@@ -1,130 +1,58 @@
-#!/usr/bin/env python3
-
-import subprocess
-import os
-from typing import List, Mapping
+import logging
+import threading
+from typing import List
 
 import click
-import ifaddr
+import coloredlogs
 
-RESOLVER = '/etc/resolver'
-DNSMASQ_CONF = '/usr/local/etc/dnsmasq.conf'
-ADDRESS_LINE_PREFIX = 'address=/'
+from dns_local.dnsserver import DEFAULT_PORT, DomainName, DomainEntry, MyThreadingUDPServer, MyThreadingTCPServer, \
+    UDPRequestHandler, TCPRequestHandler
 
+coloredlogs.install(level=logging.DEBUG)
 
-def get_interface_address(name: str) -> str:
-    for interface in ifaddr.get_adapters():
-        if interface.name == name:
-            return interface.ips[0].ip
+logger = logging.getLogger(__name__)
 
-
-def add_localhost_as_dns_server(ip: str) -> None:
-    proc = subprocess.Popen(['scutil'], stdin=subprocess.PIPE, shell=True)
-    proc.stdin.writelines([b'open\n',
-                           b'd.init\n',
-                           f'd.add ServerAddresses * {ip}\n'.encode(),
-                           b'set State:/Network/Service/PRIMARY_SERVICE_ID/DNS\n',
-                           b'quit\n',
-                           ])
-    proc.communicate()
-    proc.wait()
-    assert 0 == proc.returncode, f'scutil failed: {proc.returncode}'
+DEFAULT_BIND = f'0.0.0.0:{DEFAULT_PORT}'
 
 
-def restart_dnsmasq() -> None:
-    proc = subprocess.Popen(['brew', 'services', 'restart', 'dnsmasq'])
-    proc.communicate()
-    proc.wait()
-    assert 0 == proc.returncode
+@click.command()
+@click.option('--bind', default=DEFAULT_BIND, help='bind address')
+@click.option('--tcp', is_flag=True, help='enable TCP server')
+@click.option('--udp', is_flag=True, help='enable UDP server')
+@click.option('--domain', multiple=True, help='domain reply (e.g. example.com:127.0.0.1)')
+@click.option('--fallback', help='fallback dns server (e.g. 8.8.8.8)')
+def cli(bind: str, tcp: bool, udp: bool, domain: List[str], fallback: str = None):
+    """ Start a DNS implemented in Python """
 
+    address, port = bind.split(':')
+    port = int(port)
 
-def get_local_dns_entries() -> List[Mapping]:
-    result = {}
-    with open(DNSMASQ_CONF, 'r') as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith(ADDRESS_LINE_PREFIX):
-                try:
-                    name, ip = line.split(ADDRESS_LINE_PREFIX, 1)[1].split('/')
-                except ValueError:
-                    print(f'failed to parse line: {line}')
-                result.update({name: ip})
-    return result
+    domains = []
+    for d in domain:
+        name, ip = d.split(':', 1)
+        if not name.endswith('.'):
+            name += '.'
+        domains.append(DomainEntry(domain=DomainName(name), ip=ip))
 
+    logger.info(f'loaded domains: {domains}')
 
-def remove(name: str) -> None:
-    buf = ''
-    with open(DNSMASQ_CONF) as f:
-        for line in f.readlines():
-            if not line.startswith(ADDRESS_LINE_PREFIX + name + '/'):
-                buf += line
+    servers = []
+    if udp:
+        servers.append(MyThreadingUDPServer(domains, fallback, (address, port), UDPRequestHandler))
+    if tcp:
+        servers.append(MyThreadingTCPServer(domains, fallback, (address, port), TCPRequestHandler))
 
-    with open(DNSMASQ_CONF, 'w') as f:
-        f.write(buf)
+    for s in servers:
+        thread = threading.Thread(target=s.serve_forever)  # that thread will start one more thread for each request
+        thread.daemon = True  # exit the server thread when the main thread terminates
 
+        logger.info('starting dns server')
+        thread.start()
+        logger.info(f'{s} server loop running in thread: {thread.name}')
 
-@click.group()
-def cli():
-    """
-    Simple utility to manage dns entries on OSX using dnsmasq
-    """
-    pass
-
-
-@cli.command('remove')
-@click.argument('interface')
-@click.argument('name')
-def cli_remove(interface: str, name: str):
-    """ Remove a DNS entry """
-    remove(name)
-    add_localhost_as_dns_server(get_interface_address(interface))
-    restart_dnsmasq()
-
-
-@cli.command('list')
-def cli_list():
-    """ List current DNS entries """
-    for name, ip in get_local_dns_entries().items():
-        print(name, ip)
-
-
-@cli.command('restart')
-@click.argument('interface')
-def cli_restart(interface: str):
-    """ Restart DNS service """
-    add_localhost_as_dns_server(get_interface_address(interface))
-    restart_dnsmasq()
-
-
-@cli.command('set')
-@click.argument('interface')
-@click.argument('name')
-@click.argument('ip')
-def cli_set(interface: str, name: str, ip: str):
-    """ Insert/Update a DNS entry """
-    if not os.path.exists(RESOLVER):
-        os.mkdir(RESOLVER)
-
-    with open(os.path.join(RESOLVER, name), 'w') as f:
-        f.write(f'nameserver {get_interface_address(interface)}\n')
-
-    # make sure not already there
-    remove(name)
-
-    # add the new line
-    with open(DNSMASQ_CONF) as f:
-        buf = f.read()
-
-    if not buf.endswith('\n'):
-        buf += '\n'
-
-    buf += f'{ADDRESS_LINE_PREFIX}{name}/{ip}\n'
-
-    with open(DNSMASQ_CONF, 'w') as f:
-        f.write(buf)
-
-    add_localhost_as_dns_server(get_interface_address(interface))
-    restart_dnsmasq()
+    input('> Hit RETURN to stop')
+    for s in servers:
+        s.shutdown()
 
 
 if __name__ == '__main__':
