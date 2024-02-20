@@ -1,0 +1,49 @@
+[project]
+name = "dns_local"
+description = "Simple python3 DNS server"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007" }
+keywords = ["dns", "protocol"]
+authors = [
+    { name = "doronz88", email = "doron88@gmail.com" }
+]
+maintainers = [
+    { name = "doronz88", email = "doron88@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dynamic = ["dependencies", "version"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+"Homepage" = "https://github.com/doronz88/dns_local"
+"Bug Reports" = "https://github.com/doronz88/dns_local/issues"
+
+[project.scripts]
+dns_local = "dns_local.__main__:cli"
+
+[tool.setuptools.packages.find]
+exclude = ["docs*", "tests*"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+version = {attr = "dns_local._version.__version__"}
+
+[tool.setuptools_scm]
+version_file = "dns_local/_version.py"
+
+[build-system]
+requires = ["setuptools>=43.0.0", "setuptools_scm>=8", "wheel"]
+build-backend = "setuptools.build_meta"
