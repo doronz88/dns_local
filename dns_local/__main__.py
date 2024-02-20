@@ -19,7 +19,7 @@ DEFAULT_BIND = f'0.0.0.0:{DEFAULT_PORT}'
 @click.option('--bind', default=DEFAULT_BIND, help='bind address')
 @click.option('--tcp', is_flag=True, help='enable TCP server')
 @click.option('--udp', is_flag=True, help='enable UDP server')
-@click.option('--domain', multiple=True, help='domain reply (e.g. example.com:127.0.0.1)')
+@click.option('--domain', multiple=True, help='domain reply (e.g. example\\\\.com:127.0.0.1)')
 @click.option('--fallback', help='fallback dns server (e.g. 8.8.8.8)')
 def cli(bind: str, tcp: bool, udp: bool, domain: List[str], fallback: str = None):
     """ Start a DNS implemented in Python """

@@ -30,7 +30,7 @@ Options:
   --bind TEXT      bind address
   --tcp            enable TCP server
   --udp            enable UDP server
-  --domain TEXT    domain reply (e.g. example.com:127.0.0.1)
+  --domain TEXT    domain reply (e.g. example\\.com:127.0.0.1)
   --fallback TEXT  fallback dns server (e.g. 8.8.8.8)
   --help           Show this message and exit.
 ```
@@ -48,3 +48,8 @@ This will start a `udp` DNS server listening at `192.168.2.1:53` with the two en
 
 And use Google's DNS server (`8.8.8.8`) as a fallback for any entry not in given domain list.
 
+Domains also support regex patterns. For example, the following will forward all domains to 127.0.0.1, except for google.com which will be forwarded to 8.8.8.8:
+
+```shell
+python3 -m dns_local --bind 192.168.2.1:53 --udp --domain "google\\.com:8.8.8.8" --domain ".*:127.0.0.1"
+```
