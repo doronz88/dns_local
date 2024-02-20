@@ -7,6 +7,7 @@ import traceback
 from dataclasses import dataclass
 from socket import socket, AF_INET, SOCK_DGRAM
 from typing import List
+from re import compile, Pattern
 
 from dnslib import SOA, NS, AAAA, A, CNAME, MX, DNSRecord, DNSHeader, QTYPE, RR
 
@@ -19,6 +20,14 @@ CHUNK_SIZE = 8192
 
 
 class DomainName(str):
+    pattern: Pattern
+    suffix_pattern: Pattern
+    def __new__(cls, str_arg):
+        res = str.__new__(cls, str_arg)
+        res.pattern = compile(str_arg)
+        res.suffix_pattern = compile(f'.*\\.{str_arg}$')
+        return res
+
     def __getattr__(self, item: str) -> str:
         return DomainName(item + '.' + self)
 
@@ -48,8 +57,8 @@ class BaseRequestHandler(socketserver.BaseRequestHandler):
             TTL = 60 * 5
 
             soa_record = SOA(
-                mname=D.nameserver,  # primary name server
-                rname=D.admin_email,  # email of the domain administrator
+                mname=f'nameserver.{qn}',  # primary name server
+                rname=f'admin_email.{qn}',  # email of the domain administrator
                 times=(
                     201307231,  # serial number
                     60 * 60 * 1,  # refresh
@@ -58,18 +67,18 @@ class BaseRequestHandler(socketserver.BaseRequestHandler):
                     60 * 60 * 1,  # minimum
                 )
             )
-            ns_records = [NS(D.ns1), NS(D.ns2)]
+            ns_records = [NS(f'ns1.{qn}'), NS(f'ns2.{qn}')]
             records = {
-                D: [A(IP), AAAA((0,) * 16), MX(D.mail), soa_record] + ns_records,
+                D: [A(IP), AAAA((0,) * 16), MX(f'mail.{qn}'), soa_record] + ns_records,
                 D.ns1: [A(IP)],  # MX and NS records must never point to a CNAME alias (RFC 2181 section 10.3)
                 D.ns2: [A(IP)],
                 D.mail: [A(IP)],
-                D.andrei: [CNAME(D)],
+                D.andrei: [CNAME(qn)],
             }
 
-            if qn == D or qn.endswith('.' + D):
+            if D.pattern.match(qn) or D.suffix_pattern.match(qn):
                 for name, rrs in records.items():
-                    if name == qn:
+                    if name.pattern.match(qn):
                         for rdata in rrs:
                             rqt = rdata.__class__.__name__
                             if qt in ['*', rqt]:
@@ -77,9 +86,9 @@ class BaseRequestHandler(socketserver.BaseRequestHandler):
                                     RR(rname=qname, rtype=getattr(QTYPE, rqt), rclass=1, ttl=TTL, rdata=rdata))
 
                 for rdata in ns_records:
-                    reply.add_ar(RR(rname=D, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=rdata))
+                    reply.add_ar(RR(rname=qn, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=rdata))
 
-                reply.add_auth(RR(rname=D, rtype=QTYPE.SOA, rclass=1, ttl=TTL, rdata=soa_record))
+                reply.add_auth(RR(rname=qn, rtype=QTYPE.SOA, rclass=1, ttl=TTL, rdata=soa_record))
 
                 logger.debug(f'Reply:\n{reply}')
                 return reply.pack()
